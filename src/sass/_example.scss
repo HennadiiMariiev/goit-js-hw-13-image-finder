@@ -4,24 +4,61 @@
   line-height: 1.5;
   background-color: #fff;
   color: #424242;
-  max-width: 960px;
+  max-width: 90%;
   padding: 16px;
 }
 
-.example code {
-  font-family: monospace;
-  font-size: 16px;
-  font-weight: 700;
-  background-color: #009688;
-  color: #fff;
-  padding: 2px 6px;
-  border-radius: 2px;
+.visually-hidden {
+  position: absolute;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  margin: -1px;
 }
 
-.example .background {
-  height: 240px;
-  // Путь к изображениям из SASS-файла всегда такой, как из папки css
-  background-image: url('../images/demo.jpg');
-  background-size: cover;
-  background-position: center;
+.input {
+  min-width: 340px;
+  height: 30px;
+  padding: 2px;
+
+  margin-bottom: 14px;
+}
+
+.country {
+  padding: 14px;
+  border: 1px solid black;
+  background-color: cornsilk;
+}
+
+.country-name {
+  text-align: center;
+  font-size: 36px;
+
+  margin: 0 0 14px;
+}
+
+.country-box {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+
+.country-image {
+  width: 50%;
+}
+
+.country-meta {
+  width: 50%;
+}
+
+.country-tag {
+  font-weight: 600;
+  font-size: 24px;
+  // display: inline-block;
+}
+
+.country-text {
+  font-weight: 400;
+  font-size: 24px;
+  // display: inline-block;
 }
