@@ -1,86 +1,218 @@
 import './sass/main.scss';
-import fetchCountries from './js/fetchCountries';
-import countryTemplate from './handlebars/country.hbs';
-import countriesNamesTemplate from './handlebars/countriesNames.hbs';
-import pnotify from './js/pnotify.js';
 
-let debounce = require('lodash.debounce');
-const inputEl = document.querySelector('.input');
-const countryEl = document.querySelector('.country');
+import * as basicLightbox from 'basiclightbox';
+import alertify from 'alertifyjs';
+import debounce from 'lodash.debounce';
 
-const message = {
-    noCountry: 'No country was found. Please, change your request.',
-    moreThanTenCountries: 'More than 10 countries match your request.',
-    404: 'Error 404: bad request. Please, change your request.',
+import ImageApiService from './js/apiService';
+import imageCardTemplate from './handlebars/imageCard.hbs';
+import searchWordTemplate from './handlebars/searchWord.hbs';
+
+const galleryList = document.querySelector('.gallery');
+const form = document.querySelector('#search-form');
+const input = document.querySelector('input[type="text"]');
+const searchButton = document.querySelector('button[type="submit"]');
+const loadMoreButton = document.querySelector('#load-more');
+const clearButton = document.querySelector('#clear');
+const searchBox = document.querySelector('.search-box');
+
+const imageApiService = new ImageApiService();
+
+disableSearchButton(true);
+hideLoadMoreButton();
+
+input.addEventListener('input', debounce(onInputKeyDown, 300));
+clearButton.addEventListener('click', onClearClick);
+galleryList.addEventListener('click', onGalleryListClick);
+searchBox.addEventListener('click', onSearchBoxClick);
+
+try {
+    form.addEventListener('submit', onSearchClick);
+    loadMoreButton.addEventListener('click', onSearchClick);
+} catch (error) {
+    errorMessage(error);
 }
 
-inputEl.addEventListener('input', debounce(makeFetch, 500));
+//#region ALL FUNCTIONS
 
-function checkRequest(request) {
-    if(request.status !== 404) {
-        return request;
+async function makeFetch(event) {
+    if(event) {
+        event.preventDefault();
     }
-    if(request.status === 404) {
-        pnotify(message[404]);
-    }
-    return;
-}
 
-function proceedObject(obj) {
-    if(!obj) {
+    const response = await imageApiService.fetchRequest(input.value.trim());
+    const imagesArray =  await proceedResponse(response);
+    
+    if(imagesArray.length === 0) {
+        warningMessage();
         return;
     }
 
-    if(obj.length === 1) {
-        makeCountryMarkup(obj);
-    } else if(obj.length >= 2 && obj.length <= 10){
-        makeCountriesNamesMarkup(obj);
-    } else if (obj.length > 10){
-        moreThanTenCountriesResponse();
+    addRequestToSearchBox(imageApiService.query);
+
+    const imagesMarkup = await makePhotoCardMarkup(imagesArray);
+
+    return imagesMarkup;
+}
+
+async function onSearchClick(event) {
+    if(input.value === imageApiService.query) {
+        imageApiService.nextPage();
+    } else if(imageApiService.query !== '') {
+        refreshGalleryListAndInput();
+    }
+
+    const imagesMarkup = await makeFetch(event);
+
+    return insertMarkupToList(imagesMarkup);
+}
+
+function hideLoadMoreButton() {
+    loadMoreButton.style.display = 'none';
+}
+
+function showLoadMoreButton() {
+    loadMoreButton.style.display = 'block';
+}
+
+function onClearClick() {
+    galleryList.innerHTML = '';
+    input.value = '';
+
+    hideLoadMoreButton();
+    disableSearchButton(true);
+
+    imageApiService.resetQuery();
+}
+
+function proceedResponse(response) {
+    if(response.status === 404) {
+        errorMessage(404);
+        return;
+    }
+    
+    return response.hits;
+}
+
+function makePhotoCardMarkup(imageObjArray) {
+    return imageCardTemplate(imageObjArray);
+}
+
+function insertMarkupToList(markup) {
+    if(markup) {
+        galleryList.insertAdjacentHTML('beforeend', markup);
+
+        showLoadMoreButton();
+        successMessage();
+        scroolToLastImages();
     }
 }
 
-function moreThanTenCountriesResponse() {
-    pnotify(message.moreThanTenCountries); 
+function onInputKeyDown() {
+    if(input.value.trim().length !== 0){
+        return disableSearchButton(false);
+    }
+
+    onClearClick();
+
+    return disableSearchButton(true);
 }
 
-function makeFetch(event) {
-    clearCountryField();
-
-    const value = event.target.value.trim();
-
-    if(value) {
-        fetchCountries(value)
-                .then(checkRequest)
-                .then(proceedObject)
-                .catch(showError);
-        }
+function disableSearchButton(bool) {
+    searchButton.disabled = bool;
 }
 
-function clearCountryField() {
-    countryEl.innerHTML = '';
-    // countryEl.style.display = 'none';
+function onGalleryListClick(event) {
+    if(event.target.nodeName === "A") {
+        event.preventDefault();
+
+        downloadImage(event.target.href);
+    }
+
+    if(event.target.nodeName === "IMG") {
+        const largeImagePath = event.target.dataset.large_img;
+
+        openImage(largeImagePath);
+    }
 }
 
-function showError(error) {
-    pnotify(error);
+function downloadImage(imageRef) {
+        return fetch(imageRef)
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+        
+                a.href = url;
+                a.download = imageApiService.query;
+        
+                const clickHandler = () => {
+                    setTimeout(() => URL.revokeObjectURL(url), 150);
+                };
+
+                a.addEventListener('click', clickHandler, {once: true});
+                a.click();
+            });
 }
 
-function makeCountryMarkup(countryObj) {
-    countryEl.insertAdjacentHTML('beforeend', countryTemplate(countryObj));
+function openImage(image) {
+    const ligthBox = basicLightbox.create(`
+        <img src="${image}" alt="${imageApiService.query} image">
+    `);
+
+    ligthBox.show();
 }
 
-function makeCountriesNamesMarkup(countries) {
-    countryEl.insertAdjacentHTML('beforeend', countriesNamesTemplate(countries));
+function scroolToLastImages() {
+    setTimeout(() => {
+        loadMoreButton.scrollIntoView({
+            behavior: 'smooth',
+            block: 'end',
+            });
+    }, 300);
 }
 
-// function isValidSearchQuery(query) {
-//     const REGEXP = /\b[^\d\W]+\b/;
+function successMessage() {
+    alertify.success(`Success! Request: '${imageApiService.query}'. Page: ${imageApiService.page}. Images: ${getGalleryItemsCount()}`);
+}
 
-//     if(query.match(REGEXP)) {
-//         return true;
-//     }
+function warningMessage() {
+    if(getGalleryItemsCount() > 0) {
+        return alertify.warning(`Sorry! No more images found on request - '${imageApiService.query}'. Images: ${getGalleryItemsCount()}`);
+    }
+    return alertify.warning(`Sorry! No images found on your request - '${imageApiService.query}'. Images: ${getGalleryItemsCount()}`);
+}
 
-//     return false;
-// }
+function errorMessage(error) {
+    alertify.error(`Error! ${error}`);
+}
 
+function getGalleryItemsCount() {
+    return galleryList.children.length;
+}
+
+function addRequestToSearchBox() {
+    const searchTags = [...searchBox.children].map(el => el.dataset.query);
+
+    if(!searchTags.includes(imageApiService.query)) {
+        searchBox.insertAdjacentHTML('beforeend', searchWordTemplate(imageApiService.query));
+    }
+}
+
+function onSearchBoxClick(event) {
+    if(event.target.nodeName !== 'BUTTON') {
+        return;
+    }
+
+    input.value = event.target.dataset.query;
+    onSearchClick(event);
+    disableSearchButton(false);
+}
+
+function refreshGalleryListAndInput() {
+    galleryList.innerHTML = '';
+    imageApiService.resetQuery();
+    hideLoadMoreButton();
+}
+
+//#endregion
